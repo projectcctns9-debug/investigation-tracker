@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({ searchQuery, onSearchChange }) =
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
-              placeholder="FIR नं / विवेचक / अभियुक्त खोजें..."
+              placeholder="FIR क्रमांक या विवेचक खोजें..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full bg-police-navy-900 border border-police-navy-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-police-gold-400"

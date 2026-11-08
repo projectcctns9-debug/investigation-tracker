@@ -253,7 +253,7 @@ export const BnsMonitoring6090: React.FC<BnsMonitoring6090Props> = ({
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 transform -translate-y-1/2" />
           <input
             type="text"
-            placeholder={t('FIR नं / अभियुक्त / विवेचक खोजें...', 'Search FIR / Accused / IO...')}
+            placeholder={t('FIR क्रमांक या विवेचक खोजें...', 'Search FIR or IO...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-police-navy-600"
