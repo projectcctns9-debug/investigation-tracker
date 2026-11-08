@@ -841,7 +841,7 @@ export const PsDailyDataEntry: React.FC = () => {
       submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
       alert('सेक्शन A (ई-साक्ष्य एवं SID) सफलतापूर्वक सबमिट हो गया और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो गया है!');
     } else {
-      alert('सेक्शन A की प्रविष्टि सफलतापूर्वक सहेज ली गई है!');
+      alert('सेक्शन A की प्रविष्टि सफलतापूर्वक जमा कर ली गई है!');
     }
   };
 
@@ -864,7 +864,7 @@ export const PsDailyDataEntry: React.FC = () => {
       submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
       alert('सेक्शन B (CRA लॉगिन विवरण) सफलतापूर्वक सबमिट हो गया और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो गया है!');
     } else {
-      alert('सेक्शन B की प्रविष्टि सफलतापूर्वक सहेज ली गई है!');
+      alert('सेक्शन B की प्रविष्टि सफलतापूर्वक जमा कर ली गई है!');
     }
   };
 
@@ -888,7 +888,7 @@ export const PsDailyDataEntry: React.FC = () => {
       submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
       alert('सेक्शन C (चालान एवं 60/90 दिवस) सफलतापूर्वक सबमिट हो गया और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो गया है!');
     } else {
-      alert('सेक्शन C की प्रविष्टि सफलतापूर्वक सहेज ली गई है!');
+      alert('सेक्शन C की प्रविष्टि सफलतापूर्वक जमा कर ली गई है!');
     }
   };
 
@@ -1227,19 +1227,7 @@ export const PsDailyDataEntry: React.FC = () => {
           {/* Section A Auto-Sync Banner */}
           
 
-          {/* Section A Remarks */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              सामान्य रिमार्क (सेक्शन A):
-            </label>
-            <input
-              type="text"
-              value={secAGeneralRemarks}
-              onChange={(e) => setSecAGeneralRemarks(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-police-navy-800"
-              placeholder="ई-साक्ष्य एवं FIR SID प्रविष्टि संबंधी सामान्य टीप..."
-            />
-          </div>
+
 
           {/* ============================================================== */}
           {/* POPUP MODAL: ई-साक्ष्य FIR एवं SID प्रविष्टि फॉर्म */}
@@ -1548,7 +1536,7 @@ export const PsDailyDataEntry: React.FC = () => {
                       className="px-5 py-2 rounded-xl text-xs font-bold bg-police-navy-900 hover:bg-police-navy-950 text-police-gold-400 shadow-md flex items-center gap-1.5 transition-all transform active:scale-95"
                     >
                       <Check className="w-4 h-4" />
-                      <span>{editingFirId ? 'संशोधन सुरक्षित करें' : 'सहेजें'}</span>
+                      <span>{editingFirId ? 'संशोधन जमा करें' : 'जमा करें'}</span>
                     </button>
                   </div>
 
@@ -1862,9 +1850,10 @@ export const PsDailyDataEntry: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-police-navy-800 hover:bg-police-navy-900 text-white rounded-xl text-xs font-bold shadow"
+                      className="px-5 py-2 rounded-xl text-xs font-bold bg-police-navy-900 hover:bg-police-navy-950 text-police-gold-400 shadow-md flex items-center gap-1.5 transition-all transform active:scale-95"
                     >
-                      {editingIoId ? 'संशोधन सुरक्षित करें' : 'सहेजें'}
+                      <Check className="w-4 h-4" />
+                      <span>{editingIoId ? 'संशोधन जमा करें' : 'जमा करें'}</span>
                     </button>
                   </div>
                 </form>
@@ -2216,9 +2205,10 @@ export const PsDailyDataEntry: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-police-navy-800 hover:bg-police-navy-900 text-white rounded-xl text-xs font-bold shadow"
+                      className="px-5 py-2 rounded-xl text-xs font-bold bg-police-navy-900 hover:bg-police-navy-950 text-police-gold-400 shadow-md flex items-center gap-1.5 transition-all transform active:scale-95"
                     >
-                      {editingCsId ? 'संशोधन सुरक्षित करें' : 'सहेजें'}
+                      <Check className="w-4 h-4" />
+                      <span>{editingCsId ? 'संशोधन जमा करें' : 'जमा करें'}</span>
                     </button>
                   </div>
                 </form>

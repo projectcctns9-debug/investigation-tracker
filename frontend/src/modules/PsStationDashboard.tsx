@@ -22,7 +22,8 @@ import {
   Shield,
   RotateCcw,
   Check,
-  Building
+  Building,
+  Trash2
 } from 'lucide-react';
 
 interface PsStationDashboardProps {
@@ -41,7 +42,7 @@ export const PsStationDashboard: React.FC<PsStationDashboardProps> = ({
   onNavigateToUserManagement
 }) => {
   const { currentUser } = useAuth();
-  const { policeStations, districts, submissions, returnSubmissionForCorrection } = useMaster();
+  const { policeStations, districts, submissions, returnSubmissionForCorrection, deleteDailySubmission } = useMaster();
 
   const effectiveScope: 'SHO' | 'DISTRICT' | 'PHQ' = scope || (
     currentUser.role === 'SUPER_ADMIN' 
@@ -902,13 +903,31 @@ export const PsStationDashboard: React.FC<PsStationDashboardProps> = ({
                         )}
                       </td>
                       <td className="p-3 text-center">
-                        <button
-                          onClick={() => setSelectedSubmissionForModal(sub)}
-                          className="bg-police-navy-100 hover:bg-police-navy-200 text-police-navy-900 px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-police-navy-700" />
-                          <span>रिपोर्ट देखें</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => setSelectedSubmissionForModal(sub)}
+                            className="bg-police-navy-100 hover:bg-police-navy-200 text-police-navy-900 px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-police-navy-700" />
+                            <span>रिपोर्ट देखें</span>
+                          </button>
+                          {(currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'DISTRICT_ADMIN') && (
+                            <button
+                              onClick={() => {
+                                const psName = policeStations.find(p => p.id === sub.policeStationId)?.nameHi || sub.policeStationCode || 'थाना';
+                                if (confirm(`क्या आप वाकई थाना: ${psName} की दिनांक: ${sub.reportingDate} की यह दैनिक रिपोर्ट डिलीट करना चाहते हैं?\n\n(यह अधिकार केवल एडमिन के पास है)`)) {
+                                  deleteDailySubmission(sub.id, currentUser.fullNameHi || 'एडमिन', 'एडमिन द्वारा तालिका से रिपोर्ट डिलीट');
+                                  alert(`थाना ${psName} की रिपोर्ट हटा दी गई है!`);
+                                }
+                              }}
+                              title="रिपोर्ट डिलीट करें (केवल एडमिन)"
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-all shadow-2xs"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>डिलीट</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1218,20 +1237,37 @@ export const PsStationDashboard: React.FC<PsStationDashboardProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t">
-              <div>
+            <div className="flex items-center justify-between pt-2 border-t flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {(currentUser.role === 'DISTRICT_ADMIN' || currentUser.role === 'SUPER_ADMIN') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReturnSubmissionTarget(selectedSubmissionForModal);
-                      setShowReturnModal(true);
-                    }}
-                    className="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
-                    <span>सुधार हेतु वापस भेजें</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnSubmissionTarget(selectedSubmissionForModal);
+                        setShowReturnModal(true);
+                      }}
+                      className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-700" />
+                      <span>सुधार हेतु वापस भेजें</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const psName = policeStations.find(p => p.id === selectedSubmissionForModal.policeStationId)?.nameHi || selectedSubmissionForModal.policeStationCode || 'थाना';
+                        if (confirm(`क्या आप वाकई थाना: ${psName} की दिनांक: ${selectedSubmissionForModal.reportingDate} की यह रिपोर्ट पूर्णतः डिलीट करना चाहते हैं?`)) {
+                          deleteDailySubmission(selectedSubmissionForModal.id, currentUser.fullNameHi || 'एडमिन', 'एडमिन द्वारा मोडल से डिलीट');
+                          setSelectedSubmissionForModal(null);
+                          alert(`थाना ${psName} की रिपोर्ट सफलतापूर्वक हटा दी गई है!`);
+                        }
+                      }}
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>रिपोर्ट डिलीट करें</span>
+                    </button>
+                  </>
                 )}
               </div>
 

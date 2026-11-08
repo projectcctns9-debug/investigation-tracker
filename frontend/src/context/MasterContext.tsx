@@ -13,6 +13,7 @@ interface MasterContextType {
   saveDailySection: (psId: string, reportingDate: string, sectionKey: 'sectionA' | 'sectionB' | 'sectionC' | 'sectionD', data: any, status: 'Draft Saved' | 'Completed') => void;
   submitFinalDailyReport: (psId: string, reportingDate: string, userName: string) => DailySubmissionRecord;
   returnSubmissionForCorrection: (submissionId: string, reason: string, adminName: string) => void;
+  deleteDailySubmission: (submissionId: string, adminName: string, reason?: string) => void;
   getSubmissionForPsAndDate: (psId: string, date: string) => DailySubmissionRecord | undefined;
   addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
 }
@@ -177,6 +178,26 @@ export const MasterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
   };
 
+  const deleteDailySubmission = (submissionId: string, adminName: string, reason?: string) => {
+    setSubmissions(prev => {
+      const target = prev.find(s => s.id === submissionId);
+      if (target) {
+        addAuditLog({
+          userId: 'usr-admin',
+          userName: adminName,
+          userRole: 'DISTRICT_ADMIN',
+          action: 'DELETE_ENTRY',
+          entityType: 'DAILY_SUBMISSION',
+          entityId: submissionId,
+          psCode: target.policeStationCode,
+          details: `एडमिन (${adminName}) ने थाना ${target.policeStationCode} की दिनांक ${target.reportingDate} की दैनिक रिपोर्ट हटाई। कारण: ${reason || 'एडमिन द्वारा विलोपित'}`
+        });
+      }
+      return prev.filter(s => s.id !== submissionId);
+    });
+  };
+
+
   const importMasterExcel = async (file: File): Promise<{ success: boolean; message: string; rowsImported: number }> => {
     // Process text/csv or simulate xlsx parsing safely in pure JS
     return new Promise((resolve) => {
@@ -210,6 +231,7 @@ export const MasterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       saveDailySection,
       submitFinalDailyReport,
       returnSubmissionForCorrection,
+      deleteDailySubmission,
       getSubmissionForPsAndDate,
       addAuditLog
     }}>
