@@ -68,9 +68,8 @@ export const Navbar: React.FC<NavbarProps> = ({ searchQuery, onSearchChange }) =
                 <div className="font-bold text-white text-[11px] leading-tight truncate max-w-[150px] sm:max-w-[200px]">
                   {currentUser.fullNameHi}
                 </div>
-                <div className="text-[9px] text-police-gold-400 font-sans truncate max-w-[150px] sm:max-w-[200px]">
+                <div className="text-[10px] text-police-gold-400 font-sans truncate max-w-[160px] sm:max-w-[220px]">
                   {currentUser.roleLabelHi}
-                  {currentUser.policeStationNameHi ? ` (${currentUser.policeStationNameHi})` : (currentUser.districtNameHi ? ` (${currentUser.districtNameHi})` : '')}
                 </div>
               </div>
             </div>

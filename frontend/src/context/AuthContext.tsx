@@ -48,7 +48,7 @@ export const SEED_USERS: UserAccount[] = [
     districtCode: 'DURG',
     policeStationId: 'ps-durg-kotwali_durg',
     policeStationNameEn: 'KOTWALI, DURG',
-    policeStationNameHi: 'KOTWALI, DURG',
+    policeStationNameHi: 'कोतवाली दुर्ग',
     policeStationCode: 'DURG_KOTWALI_DUR',
     badgeNumber: 'TI-DURG-042',
     mobile: '98261XXXX3',
@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [currentUser, setCurrentUser] = useState<UserAccount>(SEED_USERS[0]);
   const [usersList, setUsersList] = useState<UserAccount[]>(() => {
     try {
-      const saved = localStorage.getItem('cctns_users_list_clean_v3');
+      const saved = localStorage.getItem('cctns_users_list_clean_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -94,7 +94,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     try {
-      localStorage.setItem('cctns_users_list_clean_v3', JSON.stringify(usersList));
+      localStorage.setItem('cctns_users_list_clean_v4', JSON.stringify(usersList));
     } catch (e) {
       console.error('Failed to save users to localStorage:', e);
     }
