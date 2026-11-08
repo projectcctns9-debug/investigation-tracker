@@ -1,16 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { useAuth, SEED_USERS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Shield, 
-  Globe, 
-  Clock, 
-  CheckCircle2, 
   Search, 
-  UserCircle, 
-  ChevronDown, 
   LogOut,
-  Building2
+  UserCheck
 } from 'lucide-react';
 import { InstallPwaButton } from './InstallPwaButton';
 
@@ -20,9 +15,8 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ searchQuery, onSearchChange }) => {
-  const { mode, setMode, t } = useLanguage();
-  const { currentUser, switchUser, allUsers, logout } = useAuth();
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const { t } = useLanguage();
+  const { currentUser, logout } = useAuth();
 
   return (
     <header className="bg-police-navy-950 text-white shadow-lg border-b-2 border-police-gold-500 sticky top-0 z-50">
@@ -58,62 +52,27 @@ export const Navbar: React.FC<NavbarProps> = ({ searchQuery, onSearchChange }) =
             />
           </div>
 
-          {/* Quick Role & User Selector */}
+          {/* Logged in User Profile Info (Strictly the Authenticated User) */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="relative">
-              <button
-                onClick={() => setShowRoleMenu(!showRoleMenu)}
-                className="flex items-center gap-2 bg-police-navy-900 hover:bg-police-navy-800 border border-police-navy-700 px-3 py-1.5 rounded-xl text-xs transition-colors"
-              >
-                <div className="w-6 h-6 rounded-full bg-police-gold-500/20 text-police-gold-400 flex items-center justify-center font-bold text-[10px]">
-                  {currentUser.role === 'SUPER_ADMIN' ? 'PHQ' : (currentUser.role === 'DISTRICT_ADMIN' ? 'जिला' : 'थाना')}
+            <div className="flex items-center gap-2 bg-police-navy-900 border border-police-navy-700/80 px-3 py-1.5 rounded-xl text-xs shadow-inner">
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                currentUser.role === 'SUPER_ADMIN'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                  : currentUser.role === 'DISTRICT_ADMIN'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+              }`}>
+                {currentUser.role === 'SUPER_ADMIN' ? 'PHQ' : (currentUser.role === 'DISTRICT_ADMIN' ? 'जिला' : 'थाना')}
+              </div>
+              <div className="text-left">
+                <div className="font-bold text-white text-[11px] leading-tight truncate max-w-[150px] sm:max-w-[200px]">
+                  {currentUser.fullNameHi}
                 </div>
-                <div className="text-left hidden md:block">
-                  <div className="font-bold text-white text-[11px] leading-tight truncate max-w-[140px]">
-                    {currentUser.fullNameHi}
-                  </div>
-                  <div className="text-[9px] text-police-gold-400 font-sans">
-                    {currentUser.roleLabelHi}
-                  </div>
+                <div className="text-[9px] text-police-gold-400 font-sans truncate max-w-[150px] sm:max-w-[200px]">
+                  {currentUser.roleLabelHi}
+                  {currentUser.policeStationNameHi ? ` (${currentUser.policeStationNameHi})` : (currentUser.districtNameHi ? ` (${currentUser.districtNameHi})` : '')}
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              </button>
-
-              {/* Role Dropdown */}
-              {showRoleMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 text-slate-800 z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-500 font-bold tracking-wider">
-                    परीक्षण हेतु लॉगिन रोल चुनें:
-                  </div>
-
-                  <div className="space-y-1 p-1 max-h-96 overflow-y-auto">
-                    {allUsers.map((user) => (
-                      <button
-                        key={user.id}
-                        onClick={() => {
-                          switchUser(user.id);
-                          setShowRoleMenu(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-start gap-2.5 transition-colors ${
-                          currentUser.id === user.id
-                            ? 'bg-police-navy-800 text-white font-bold'
-                            : 'hover:bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                          user.role === 'SUPER_ADMIN' ? 'bg-purple-500' : (user.role === 'DISTRICT_ADMIN' ? 'bg-blue-500' : 'bg-emerald-500')
-                        }`} />
-                        <div>
-                          <div className="font-semibold">{user.fullNameHi}</div>
-                          <div className={`text-[10px] ${currentUser.id === user.id ? 'text-police-gold-300' : 'text-slate-400'}`}>
-                            {user.roleLabelHi} • {user.districtNameHi || 'समस्त छत्तीसगढ़'} {user.policeStationNameHi ? `• ${user.policeStationNameHi}` : ''}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
 
             {/* Mobile App Install Button */}
