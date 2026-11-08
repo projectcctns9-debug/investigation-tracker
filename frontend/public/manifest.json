@@ -1,0 +1,33 @@
+{
+  "name": "CCTNS विवेचना एवं ई-साक्ष्य ट्रैकर",
+  "short_name": "CCTNS ट्रैकर",
+  "description": "छत्तीसगढ़ पुलिस – NCLI दैनिक मॉनिटरिंग, ई-साक्ष्य एवं चालान ट्रैकर",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1d3a",
+  "theme_color": "#0b1d3a",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["government", "productivity", "utilities"]
+}

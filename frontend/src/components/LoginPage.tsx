@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, User, Eye, EyeOff, AlertCircle, KeyRound } from 'lucide-react';
+import { InstallPwaButton } from './InstallPwaButton';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -135,6 +136,9 @@ export const LoginPage: React.FC = () => {
 
           </div>
         </div>
+
+        {/* Install Mobile App (PWA) Button */}
+        <InstallPwaButton variant="login" />
       </div>
 
     </div>

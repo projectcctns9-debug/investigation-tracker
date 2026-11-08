@@ -12,6 +12,7 @@ import {
   LogOut,
   Building2
 } from 'lucide-react';
+import { InstallPwaButton } from './InstallPwaButton';
 
 interface NavbarProps {
   searchQuery: string;
@@ -114,6 +115,9 @@ export const Navbar: React.FC<NavbarProps> = ({ searchQuery, onSearchChange }) =
                 </div>
               )}
             </div>
+
+            {/* Mobile App Install Button */}
+            <InstallPwaButton variant="navbar" />
 
             {/* Logout Button */}
             <button
