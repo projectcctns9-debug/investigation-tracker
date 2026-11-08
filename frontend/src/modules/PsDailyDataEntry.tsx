@@ -3,6 +3,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useMaster } from '../context/MasterContext';
 import { 
+  EditHistoryEntry,
   FirSidItem, 
   CraIoItem, 
   ChargesheetFirItem, 
@@ -18,6 +19,8 @@ import {
   PlusCircle, 
   Trash2, 
   CheckCircle2, 
+  History,
+  Lock,
   AlertTriangle, 
   Clock, 
   Camera, 
@@ -51,7 +54,8 @@ export const PsDailyDataEntry: React.FC = () => {
     districts, 
     getSubmissionForPsAndDate, 
     saveDailySection, 
-    submitFinalDailyReport 
+    submitFinalDailyReport,
+    addAuditLog
   } = useMaster();
 
   // If SHO is logged in, their PS is locked. If Admin is testing, allow testing the PS.
@@ -69,6 +73,14 @@ export const PsDailyDataEntry: React.FC = () => {
 
   const [reportingDate, setReportingDate] = useState<string>(getTodayDateString());
   const [activeSection, setActiveSection] = useState<'A' | 'B' | 'C'>('A');
+  const canDelete = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'DISTRICT_ADMIN';
+  const [modalEditReason, setModalEditReason] = useState<string>('');
+  const [modalIoEditReason, setModalIoEditReason] = useState<string>('');
+  const [modalCsEditReason, setModalCsEditReason] = useState<string>('');
+  const [historyModalData, setHistoryModalData] = useState<{
+    title: string;
+    history: EditHistoryEntry[];
+  } | null>(null);
   const [submitSuccessModal, setSubmitSuccessModal] = useState<DailySubmissionRecord | null>(null);
 
   // SECTION A: e-Sakshya State (Starts fresh and empty)
@@ -141,6 +153,7 @@ export const PsDailyDataEntry: React.FC = () => {
   // Handlers for Section A Form & Modal
   const openAddFirModal = () => {
     setEditingFirId(null);
+    setModalEditReason('');
     setModalFirNumber(''); // Blank by default, no pre-fill
     setModalFirDate(reportingDate);
     setModalIoName('');
@@ -156,6 +169,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
   const openEditFirModal = (fir: FirSidItem) => {
     setEditingFirId(fir.id);
+    setModalEditReason('');
     setModalFirNumber(fir.firNumber);
     setModalFirDate(fir.firRegistrationDate);
     setModalIoName(fir.ioName || '');
@@ -235,6 +249,21 @@ export const PsDailyDataEntry: React.FC = () => {
       ? modalSidList.map(s => s.trim()).filter(Boolean)
       : [];
 
+    const existingFir = editingFirId ? secAFirs.find(f => f.id === editingFirId) : null;
+    let firHistory = existingFir?.editHistory ? [...existingFir.editHistory] : [];
+    if (editingFirId) {
+      firHistory.unshift({
+        modifiedBy: currentUser.fullNameHi || 'विवेचक',
+        modifiedByRole: currentUser.roleLabelHi,
+        modifiedAt: new Date().toLocaleString('hi-IN', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true
+        }),
+        reason: modalEditReason.trim() || modalRemarks.trim() || 'विवेचक द्वारा विवरण संशोधित',
+        changesSummary: `FIR नं. ${modalFirNumber.trim()} में संशोधन दर्ज`
+      });
+    }
+
     const item: FirSidItem = {
       id: editingFirId || `fir-${Date.now()}`,
       firNumber: modalFirNumber.trim(),
@@ -248,25 +277,81 @@ export const PsDailyDataEntry: React.FC = () => {
       sidNumber: cleanedSids[0] || '',
       finalLinkCompleted: modalFinalLink,
       pendingReason: modalFinalLink ? '' : modalPendingReason,
-      remarks: modalRemarks
+      remarks: modalRemarks,
+      editHistory: firHistory
     };
 
-    if (editingFirId) {
-      setSecAFirs(secAFirs.map(f => f.id === editingFirId ? item : f));
-    } else {
-      setSecAFirs([...secAFirs, item]);
-    }
+    const updatedFirs = editingFirId
+      ? secAFirs.map(f => f.id === editingFirId ? item : f)
+      : [...secAFirs, item];
+
+    setSecAFirs(updatedFirs);
+
+    // DIRECT AUTO SUBMIT & LIVE SYNC
+    saveDailySection(activePsId, reportingDate, 'sectionA', {
+      totalFirsToday: updatedFirs.length,
+      sidCreatedCount: updatedFirs.filter(f => f.sidCreated).length,
+      finalLinkCompletedCount: updatedFirs.filter(f => f.finalLinkCompleted).length,
+      pendingSidCount: updatedFirs.filter(f => !f.sidCreated).length,
+      pendingFinalLinkCount: updatedFirs.filter(f => !f.finalLinkCompleted).length,
+      firRecords: updatedFirs,
+      generalRemarks: secAGeneralRemarks
+    }, 'Completed');
+
+    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: editingFirId ? 'UPDATE_ENTRY' : 'CREATE_ENTRY',
+      entityType: 'DAILY_SUBMISSION',
+      details: editingFirId 
+        ? `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने FIR ${item.firNumber} का विवरण संशोधित किया: ${modalEditReason || 'संशोधन'}`
+        : `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने नई FIR ${item.firNumber} प्रविष्टि सीधे जमा की`,
+      ipAddress: '127.0.0.1'
+    });
 
     setShowFirModal(false);
   };
 
   const removeFirFromSectionA = (id: string) => {
-    setSecAFirs(prev => prev.filter(f => f.id !== id));
+    if (!canDelete) {
+      alert('सुरक्षा प्रतिबंध: दर्ज की गई प्रविष्टि को हटाने का अधिकार केवल जिला या राज्य मुख्यालय एडमिन के पास है!');
+      return;
+    }
+    if (!confirm('क्या आप वाकई इस FIR प्रविष्टि को हटाना चाहते हैं?')) return;
+    const firToRemove = secAFirs.find(f => f.id === id);
+    const updated = secAFirs.filter(f => f.id !== id);
+    setSecAFirs(updated);
+
+    saveDailySection(activePsId, reportingDate, 'sectionA', {
+      totalFirsToday: updated.length,
+      sidCreatedCount: updated.filter(f => f.sidCreated).length,
+      finalLinkCompletedCount: updated.filter(f => f.finalLinkCompleted).length,
+      pendingSidCount: updated.filter(f => !f.sidCreated).length,
+      pendingFinalLinkCount: updated.filter(f => !f.finalLinkCompleted).length,
+      firRecords: updated,
+      generalRemarks: secAGeneralRemarks
+    }, 'Completed');
+
+    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || 'एडमिन');
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: 'DELETE_ENTRY',
+      entityType: 'DAILY_SUBMISSION',
+      details: `${currentUser.fullNameHi} (एडमिन) ने FIR ${firToRemove?.firNumber || id} हटाई`,
+      ipAddress: '127.0.0.1'
+    });
   };
 
   // Handlers for Section B Form & Modal
   const openAddIoModal = () => {
     setEditingIoId(null);
+    setModalIoEditReason('');
     setModalIoNameB('');
     setModalIoRankB('');
     setModalIoLoggedInB(''); // डिफ़ॉल्ट में कोई चयन नहीं
@@ -278,6 +363,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
   const openEditIoModal = (io: CraIoItem) => {
     setEditingIoId(io.id);
+    setModalIoEditReason('');
     setModalIoNameB(io.ioName || '');
     setModalIoRankB(io.rank || '');
     setModalIoLoggedInB(io.hasLoggedIn ? 'yes' : 'no');
@@ -307,6 +393,21 @@ export const PsDailyDataEntry: React.FC = () => {
     }
 
     const isYes = modalIoLoggedInB === 'yes';
+    const existingIo = editingIoId ? secBIos.find(i => i.id === editingIoId) : null;
+    let ioHistory = existingIo?.editHistory ? [...existingIo.editHistory] : [];
+    if (editingIoId) {
+      ioHistory.unshift({
+        modifiedBy: currentUser.fullNameHi || 'विवेचक',
+        modifiedByRole: currentUser.roleLabelHi,
+        modifiedAt: new Date().toLocaleString('hi-IN', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true
+        }),
+        reason: modalIoEditReason.trim() || modalIoRemarksB.trim() || 'विवेचक द्वारा विवरण संशोधित',
+        changesSummary: `विवेचक ${modalIoNameB.trim()} के लॉगिन विवरण में संशोधन`
+      });
+    }
+
     const item: CraIoItem = {
       id: editingIoId || `io-${Date.now()}`,
       ioName: modalIoNameB.trim(),
@@ -314,24 +415,83 @@ export const PsDailyDataEntry: React.FC = () => {
       hasLoggedIn: isYes,
       loginCount: isYes ? Number(modalIoLoginCountB || 1) : 0,
       notLoggedInReason: isYes ? '' : modalIoNotLoggedInReasonB.trim(),
-      remarks: modalIoRemarksB.trim()
+      remarks: modalIoRemarksB.trim(),
+      editHistory: ioHistory
     };
 
-    if (editingIoId) {
-      setSecBIos(secBIos.map(i => i.id === editingIoId ? item : i));
-    } else {
-      setSecBIos([...secBIos, item]);
-    }
+    const updatedIos = editingIoId
+      ? secBIos.map(i => i.id === editingIoId ? item : i)
+      : [...secBIos, item];
+
+    setSecBIos(updatedIos);
+
+    // DIRECT AUTO SUBMIT & LIVE SYNC
+    const totalIos = updatedIos.length;
+    const loggedIn = updatedIos.filter(i => i.hasLoggedIn).length;
+    saveDailySection(activePsId, reportingDate, 'sectionB', {
+      totalIosPosted: totalIos,
+      iosLoggedInToday: loggedIn,
+      iosNotLoggedInToday: totalIos - loggedIn,
+      craLoginPercentage: totalIos > 0 ? Math.round((loggedIn / totalIos) * 100) : 0,
+      ioRecords: updatedIos,
+      generalRemarks: secBGeneralRemarks
+    }, 'Completed');
+
+    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: editingIoId ? 'UPDATE_ENTRY' : 'CREATE_ENTRY',
+      entityType: 'DAILY_SUBMISSION',
+      details: editingIoId 
+        ? `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने विवेचक ${item.ioName} का विवरण संशोधित किया: ${modalIoEditReason || 'संशोधन'}`
+        : `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने विवेचक ${item.ioName} की प्रविष्टि सीधे जमा की`,
+      ipAddress: '127.0.0.1'
+    });
+
     setShowIoModal(false);
   };
 
   const removeIoFromSectionB = (id: string) => {
-    setSecBIos(prev => prev.filter(i => i.id !== id));
+    if (!canDelete) {
+      alert('सुरक्षा प्रतिबंध: दर्ज की गई प्रविष्टि को हटाने का अधिकार केवल जिला या राज्य मुख्यालय एडमिन के पास है!');
+      return;
+    }
+    if (!confirm('क्या आप वाकई इस विवेचक प्रविष्टि को हटाना चाहते हैं?')) return;
+    const ioToRemove = secBIos.find(i => i.id === id);
+    const updated = secBIos.filter(i => i.id !== id);
+    setSecBIos(updated);
+
+    const totalIos = updated.length;
+    const loggedIn = updated.filter(i => i.hasLoggedIn).length;
+    saveDailySection(activePsId, reportingDate, 'sectionB', {
+      totalIosPosted: totalIos,
+      iosLoggedInToday: loggedIn,
+      iosNotLoggedInToday: totalIos - loggedIn,
+      craLoginPercentage: totalIos > 0 ? Math.round((loggedIn / totalIos) * 100) : 0,
+      ioRecords: updated,
+      generalRemarks: secBGeneralRemarks
+    }, 'Completed');
+
+    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || 'एडमिन');
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: 'DELETE_ENTRY',
+      entityType: 'DAILY_SUBMISSION',
+      details: `${currentUser.fullNameHi} (एडमिन) ने विवेचक ${ioToRemove?.ioName || id} को हटाया`,
+      ipAddress: '127.0.0.1'
+    });
   };
 
   // Handlers for Section C Form & Modal
   const openAddCsModal = () => {
     setEditingCsId(null);
+    setModalCsEditReason('');
     setModalCsFirNumber('');
     setModalCsPrepared(''); // डिफ़ॉल्ट में कोई चयन नहीं
     setModalCsStatutoryDays(''); // डिफ़ॉल्ट में कोई चयन नहीं
@@ -344,6 +504,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
   const openEditCsModal = (cs: ChargesheetFirItem) => {
     setEditingCsId(cs.id);
+    setModalCsEditReason('');
     setModalCsFirNumber(cs.firNumber || '');
     setModalCsPrepared(cs.chargesheetPrepared ? 'yes' : 'no');
     setModalCsStatutoryDays(cs.statutoryDays ? String(cs.statutoryDays) : '');
@@ -381,6 +542,21 @@ export const PsDailyDataEntry: React.FC = () => {
       return;
     }
 
+    const existingCs = editingCsId ? secCChargesheets.find(c => c.id === editingCsId) : null;
+    let csHistory = existingCs?.editHistory ? [...existingCs.editHistory] : [];
+    if (editingCsId) {
+      csHistory.unshift({
+        modifiedBy: currentUser.fullNameHi || 'विवेचक',
+        modifiedByRole: currentUser.roleLabelHi,
+        modifiedAt: new Date().toLocaleString('hi-IN', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', hour12: true
+        }),
+        reason: modalCsEditReason.trim() || modalCsRemarks.trim() || 'विवेचक द्वारा विवरण संशोधित',
+        changesSummary: `चालान FIR ${modalCsFirNumber.trim()} में संशोधन दर्ज`
+      });
+    }
+
     const item: ChargesheetFirItem = {
       id: editingCsId || `cs-${Date.now()}`,
       firNumber: modalCsFirNumber.trim(),
@@ -390,19 +566,75 @@ export const PsDailyDataEntry: React.FC = () => {
       courtSubmissionStatus: (modalCsCourtStatus as any) || 'Pending',
       courtEstablishmentName: modalCsCourtName.trim(),
       cctnsEntryStatus: (modalCsCctnsStatus as any) || 'Pending',
-      remarks: modalCsRemarks.trim()
+      remarks: modalCsRemarks.trim(),
+      editHistory: csHistory
     };
 
-    if (editingCsId) {
-      setSecCChargesheets(secCChargesheets.map(c => c.id === editingCsId ? item : c));
-    } else {
-      setSecCChargesheets([...secCChargesheets, item]);
-    }
+    const updatedCs = editingCsId
+      ? secCChargesheets.map(c => c.id === editingCsId ? item : c)
+      : [...secCChargesheets, item];
+
+    setSecCChargesheets(updatedCs);
+
+    // DIRECT AUTO SUBMIT & LIVE SYNC
+    saveDailySection(activePsId, reportingDate, 'sectionC', {
+      chargesheetsPreparedToday: updatedCs.filter(c => c.chargesheetPrepared).length,
+      presentedInCourtToday: updatedCs.filter(c => c.courtSubmissionStatus === 'Presented').length,
+      enteredInCctnsToday: updatedCs.filter(c => c.cctnsEntryStatus === 'Completed').length,
+      pendingCctnsEntriesCumulative: updatedCs.filter(c => c.cctnsEntryStatus === 'Pending').length,
+      awaitingCourtPresentationCumulative: updatedCs.filter(c => c.courtSubmissionStatus === 'Pending').length,
+      firRecords: updatedCs,
+      generalRemarks: secCGeneralRemarks
+    }, 'Completed');
+
+    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: editingCsId ? 'UPDATE_ENTRY' : 'CREATE_ENTRY',
+      entityType: 'DAILY_SUBMISSION',
+      details: editingCsId 
+        ? `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने चालान FIR ${item.firNumber} का विवरण संशोधित किया: ${modalCsEditReason || 'संशोधन'}`
+        : `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने चालान FIR ${item.firNumber} की प्रविष्टि सीधे जमा की`,
+      ipAddress: '127.0.0.1'
+    });
+
     setShowCsModal(false);
   };
 
   const removeChargesheetFromSectionC = (id: string) => {
-    setSecCChargesheets(prev => prev.filter(c => c.id !== id));
+    if (!canDelete) {
+      alert('सुरक्षा प्रतिबंध: दर्ज की गई प्रविष्टि को हटाने का अधिकार केवल जिला या राज्य मुख्यालय एडमिन के पास है!');
+      return;
+    }
+    if (!confirm('क्या आप वाकई इस चालान प्रविष्टि को हटाना चाहते हैं?')) return;
+    const csToRemove = secCChargesheets.find(c => c.id === id);
+    const updated = secCChargesheets.filter(c => c.id !== id);
+    setSecCChargesheets(updated);
+
+    saveDailySection(activePsId, reportingDate, 'sectionC', {
+      chargesheetsPreparedToday: updated.filter(c => c.chargesheetPrepared).length,
+      presentedInCourtToday: updated.filter(c => c.courtSubmissionStatus === 'Presented').length,
+      enteredInCctnsToday: updated.filter(c => c.cctnsEntryStatus === 'Completed').length,
+      pendingCctnsEntriesCumulative: updated.filter(c => c.cctnsEntryStatus === 'Pending').length,
+      awaitingCourtPresentationCumulative: updated.filter(c => c.courtSubmissionStatus === 'Pending').length,
+      firRecords: updated,
+      generalRemarks: secCGeneralRemarks
+    }, 'Completed');
+
+    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || 'एडमिन');
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: 'DELETE_ENTRY',
+      entityType: 'DAILY_SUBMISSION',
+      details: `${currentUser.fullNameHi} (एडमिन) ने चालान FIR ${csToRemove?.firNumber || id} को हटाया`,
+      ipAddress: '127.0.0.1'
+    });
   };
 
   // Handlers for Section D
@@ -652,14 +884,10 @@ export const PsDailyDataEntry: React.FC = () => {
 
             <div className="flex items-center gap-2">
 
-              <button
-                type="button"
-                onClick={() => handleSaveSectionA('Completed')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>सेक्शन A पूर्ण करें</span>
-              </button>
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>स्वतः जमा व सिंक (Auto-Saved)</span>
+              </div>
             </div>
           </div>
 
@@ -675,10 +903,23 @@ export const PsDailyDataEntry: React.FC = () => {
                 <p className="text-[11px] text-slate-500">प्रत्येक FIR के लिए एक या अधिक (10+ तक) SID जोड़ सकते हैं</p>
               </div>
               <div className="flex items-center gap-2">
-                {secAFirs.length > 0 && (
+                {canDelete && secAFirs.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setSecAFirs([])}
+                    onClick={() => {
+                      if (!confirm('क्या आप वाकई सभी FIR प्रविष्टियों को हटाना चाहते हैं?')) return;
+                      setSecAFirs([]);
+                      saveDailySection(activePsId, reportingDate, 'sectionA', {
+                        totalFirsToday: 0,
+                        sidCreatedCount: 0,
+                        finalLinkCompletedCount: 0,
+                        pendingSidCount: 0,
+                        pendingFinalLinkCount: 0,
+                        firRecords: [],
+                        generalRemarks: secAGeneralRemarks
+                      }, 'Completed');
+                      submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || 'एडमिन');
+                    }}
                     className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600" />
@@ -732,7 +973,23 @@ export const PsDailyDataEntry: React.FC = () => {
                       return (
                         <tr key={fir.id} className="hover:bg-slate-50 transition-colors">
                           <td className="px-3 py-3 font-mono font-bold text-police-navy-900 text-sm">
-                            {fir.firNumber}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{fir.firNumber}</span>
+                              {fir.editHistory && fir.editHistory.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setHistoryModalData({
+                                    title: `संशोधन इतिहास - FIR नं. ${fir.firNumber}`,
+                                    history: fir.editHistory || []
+                                  })}
+                                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-colors inline-flex items-center gap-1"
+                                  title="संशोधन इतिहास देखें"
+                                >
+                                  <History className="w-3 h-3 text-amber-700" />
+                                  <span>संशोधित ({fir.editHistory.length})</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-slate-600 font-mono">
                             {fir.firRegistrationDate}
@@ -808,14 +1065,20 @@ export const PsDailyDataEntry: React.FC = () => {
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
-                              <button
-                                type="button"
-                                title="हटाएं"
-                                onClick={() => removeFirFromSectionA(fir.id)}
-                                className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {canDelete ? (
+                                <button
+                                  type="button"
+                                  title="हटाएं (केवल एडमिन)"
+                                  onClick={() => removeFirFromSectionA(fir.id)}
+                                  className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <span title="प्रविष्टि हटाने की अनुमति केवल जिला या राज्य एडमिन को है" className="p-1.5 text-slate-300 cursor-not-allowed">
+                                  <Lock className="w-3.5 h-3.5" />
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -827,27 +1090,10 @@ export const PsDailyDataEntry: React.FC = () => {
             </div>
           </div>
 
-          {/* Section A Bottom Submit Bar */}
-          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/70 p-4 rounded-xl border">
-            <div>
-              <span className="text-xs font-bold text-police-navy-950 block">
-                ई-साक्ष्य प्रविष्टि सत्यापन
-              </span>
-              <p className="text-[11px] text-slate-500 font-hindi">
-                डाटा जांच कर यहीं से सीधे सबमिट करें। सबमिट करने पर जिला एडमिन व PHQ पर तुरंत सिंक हो जाएगा।
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-
-              <button
-                type="button"
-                onClick={() => handleSaveSectionA('Completed')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-transform active:scale-95"
-              >
-                <Send className="w-4 h-4" />
-                <span>सेक्शन A सबमिट करें</span>
-              </button>
-            </div>
+          {/* Section A Auto-Sync Banner */}
+          <div className="pt-3 border-t border-slate-200 flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>ई-साक्ष्य प्रविष्टि फॉर्म से सहेजते ही सीधे स्वतः जमा (Auto-Submitted) हो जाती है और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो जाती है।</span>
           </div>
 
           {/* Section A Remarks */}
@@ -1171,7 +1417,7 @@ export const PsDailyDataEntry: React.FC = () => {
                       className="px-5 py-2 rounded-xl text-xs font-bold bg-police-navy-900 hover:bg-police-navy-950 text-police-gold-400 shadow-md flex items-center gap-1.5 transition-all transform active:scale-95"
                     >
                       <Check className="w-4 h-4" />
-                      <span>{editingFirId ? 'संशोधन सुरक्षित करें' : 'FIR एवं SID सुरक्षित करें'}</span>
+                      <span>{editingFirId ? 'संशोधन सुरक्षित करें' : 'सहेजें एवं सीधे जमा करें'}</span>
                     </button>
                   </div>
 
@@ -1200,14 +1446,10 @@ export const PsDailyDataEntry: React.FC = () => {
 
             <div className="flex items-center gap-2">
 
-              <button
-                type="button"
-                onClick={() => handleSaveSectionB('Completed')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>{t('सेक्शन B पूर्ण करें', 'Save Section B')}</span>
-              </button>
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>स्वतः जमा व सिंक (Auto-Saved)</span>
+              </div>
             </div>
           </div>
 
@@ -1223,10 +1465,22 @@ export const PsDailyDataEntry: React.FC = () => {
                 <p className="text-[11px] text-slate-500">प्रत्येक पदस्थ विवेचक की दैनिक लॉगिन स्थिति दर्ज करें</p>
               </div>
               <div className="flex items-center gap-2">
-                {secBIos.length > 0 && (
+                {canDelete && secBIos.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setSecBIos([])}
+                    onClick={() => {
+                      if (!confirm('क्या आप वाकई सभी विवेचक प्रविष्टियों को हटाना चाहते हैं?')) return;
+                      setSecBIos([]);
+                      saveDailySection(activePsId, reportingDate, 'sectionB', {
+                        totalIosPosted: 0,
+                        iosLoggedInToday: 0,
+                        iosNotLoggedInToday: 0,
+                        craLoginPercentage: 0,
+                        ioRecords: [],
+                        generalRemarks: secBGeneralRemarks
+                      }, 'Completed');
+                      submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || 'एडमिन');
+                    }}
                     className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600" />
@@ -1517,14 +1771,10 @@ export const PsDailyDataEntry: React.FC = () => {
 
             <div className="flex items-center gap-2">
 
-              <button
-                type="button"
-                onClick={() => handleSaveSectionC('Completed')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>{t('सेक्शन C पूर्ण करें', 'Save Section C')}</span>
-              </button>
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>स्वतः जमा व सिंक (Auto-Saved)</span>
+              </div>
             </div>
           </div>
 
@@ -1540,10 +1790,23 @@ export const PsDailyDataEntry: React.FC = () => {
                 <p className="text-[11px] text-slate-500">प्रत्येक चालान की 60/90 दिवस समय-सीमा व कोर्ट पेशी दर्ज करें</p>
               </div>
               <div className="flex items-center gap-2">
-                {secCChargesheets.length > 0 && (
+                {canDelete && secCChargesheets.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setSecCChargesheets([])}
+                    onClick={() => {
+                      if (!confirm('क्या आप वाकई सभी चालान प्रविष्टियों को हटाना चाहते हैं?')) return;
+                      setSecCChargesheets([]);
+                      saveDailySection(activePsId, reportingDate, 'sectionC', {
+                        chargesheetsPreparedToday: 0,
+                        presentedInCourtToday: 0,
+                        enteredInCctnsToday: 0,
+                        pendingCctnsEntriesCumulative: 0,
+                        awaitingCourtPresentationCumulative: 0,
+                        firRecords: [],
+                        generalRemarks: secCGeneralRemarks
+                      }, 'Completed');
+                      submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || 'एडमिन');
+                    }}
                     className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5 text-rose-600" />
@@ -1670,27 +1933,10 @@ export const PsDailyDataEntry: React.FC = () => {
             </div>
           </div>
 
-          {/* Section C Bottom Submit Bar */}
-          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/70 p-4 rounded-xl border">
-            <div>
-              <span className="text-xs font-bold text-police-navy-950 block">
-                चालान एवं 60/90 दिवस सत्यापन
-              </span>
-              <p className="text-[11px] text-slate-500 font-hindi">
-                चालान व कोर्ट पेशी डाटा जांच कर यहीं से सबमिट करें।
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-
-              <button
-                type="button"
-                onClick={() => handleSaveSectionC('Completed')}
-                className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition-transform active:scale-95"
-              >
-                <Send className="w-4 h-4" />
-                <span>सेक्शन C सबमिट करें</span>
-              </button>
-            </div>
+          {/* Section C Auto-Sync Banner */}
+          <div className="pt-3 border-t border-slate-200 flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>चालान प्रविष्टि सहेजते ही सीधे स्वतः जमा (Auto-Submitted) हो जाती है और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो जाती है।</span>
           </div>
 
           {/* Section C Modal Popup Form */}
@@ -1890,6 +2136,70 @@ export const PsDailyDataEntry: React.FC = () => {
             >
               {t('ठीक है (Done)', 'Done')}
             </button>
+          </div>
+        </div>
+      )}
+      {/* ============================================================== */}
+      {/* AUDIT / MODIFICATION HISTORY MODAL */}
+      {/* ============================================================== */}
+      {historyModalData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden animate-in zoom-in-95">
+            <div className="bg-police-navy-950 text-white p-4 flex items-center justify-between border-b-2 border-police-gold-500">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-police-gold-400" />
+                <h3 className="font-bold text-sm text-white">{historyModalData.title}</h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setHistoryModalData(null)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 max-h-96 overflow-y-auto space-y-3 bg-slate-50/50">
+              {historyModalData.history.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">कोई संशोधन दर्ज नहीं है।</p>
+              ) : (
+                historyModalData.history.map((h, idx) => (
+                  <div key={idx} className="bg-white border border-amber-200 shadow-xs rounded-xl p-3.5 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between border-b border-amber-100 pb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="font-bold text-police-navy-900">{h.modifiedBy}</span>
+                        <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono border">
+                          {h.modifiedByRole}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        {h.modifiedAt}
+                      </span>
+                    </div>
+                    <div className="text-slate-700 font-hindi pt-0.5">
+                      <strong className="text-police-navy-950">संशोधन का कारण:</strong> {h.reason || 'संशोधन दर्ज किया गया'}
+                    </div>
+                    {h.changesSummary && (
+                      <div className="text-[11px] text-slate-500 font-hindi">
+                        {h.changesSummary}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 bg-slate-100 border-t flex justify-end">
+              <button
+                type="button"
+                onClick={() => setHistoryModalData(null)}
+                className="px-4 py-1.5 bg-police-navy-900 hover:bg-police-navy-950 text-police-gold-400 font-bold text-xs rounded-xl shadow-xs"
+              >
+                बंद करें
+              </button>
+            </div>
           </div>
         </div>
       )}

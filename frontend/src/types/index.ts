@@ -55,6 +55,14 @@ export interface Officer {
   isActiveIO: boolean;
 }
 
+export interface EditHistoryEntry {
+  modifiedBy: string;
+  modifiedByRole: string;
+  modifiedAt: string;
+  reason?: string;
+  changesSummary?: string;
+}
+
 // Section A: e-Sakshya & FIR SID Tracking
 export interface FirSidItem {
   id: string;
@@ -70,6 +78,7 @@ export interface FirSidItem {
   finalLinkCompleted: boolean;
   pendingReason?: string;
   remarks?: string;
+  editHistory?: EditHistoryEntry[];
 }
 
 export interface DailySectionESakshya {
@@ -95,6 +104,7 @@ export interface CraIoItem {
   notLoggedInReason?: string;
   loginTime?: string;
   remarks?: string;
+  editHistory?: EditHistoryEntry[];
 }
 
 export interface DailySectionCra {
@@ -125,6 +135,7 @@ export interface ChargesheetFirItem {
   cisCaseNo?: string;
   pendingReason?: string;
   remarks?: string;
+  editHistory?: EditHistoryEntry[];
 }
 
 export interface DailySectionChargesheet {
