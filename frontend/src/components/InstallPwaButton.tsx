@@ -76,7 +76,7 @@ export const InstallPwaButton: React.FC<{ variant?: 'navbar' | 'login' | 'banner
             className="inline-flex items-center gap-2 bg-slate-900/90 hover:bg-slate-800 text-police-gold-400 hover:text-police-gold-300 border border-police-gold-500/30 px-4 py-2 rounded-2xl text-xs font-bold transition-all shadow-md active:scale-95"
           >
             <Smartphone className="w-4 h-4 text-police-gold-400 animate-pulse" />
-            <span>मोबाइल ऐप (APK/PWA) अपने फोन में इंस्टॉल करें</span>
+            <span>मोबाइल ऐप इंस्टॉल करें</span>
             <Download className="w-3.5 h-3.5 ml-0.5 opacity-80" />
           </button>
         </div>
