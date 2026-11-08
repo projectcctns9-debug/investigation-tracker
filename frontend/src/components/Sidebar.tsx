@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   return (
-    <aside className="w-full md:w-64 bg-white border-r border-slate-200 shrink-0 shadow-sm flex flex-col justify-between">
+    <aside className="w-full md:w-64 bg-white rounded-2xl border border-slate-200/80 shrink-0 shadow-sm flex flex-col justify-between overflow-hidden">
       <div className="p-3">
         <div className="px-3 py-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
           <span>मुख्य मेन्यू</span>

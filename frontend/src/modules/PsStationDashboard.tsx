@@ -245,7 +245,7 @@ export const PsStationDashboard: React.FC<PsStationDashboardProps> = ({
       }
     });
 
-    const craPercent = totalIosPosted > 0 ? Math.round((totalIosLogged / totalIosPosted) * 100) : 100;
+    const craPercent = totalIosPosted > 0 ? Math.round((totalIosLogged / totalIosPosted) * 100) : 0;
 
     return {
       totalSubmissions: stationSubmissions.length,
@@ -473,10 +473,10 @@ export const PsStationDashboard: React.FC<PsStationDashboardProps> = ({
             <div className="flex items-center gap-2">
               <span className="bg-police-gold-500 text-police-navy-950 font-black text-xs px-2.5 py-0.5 rounded uppercase tracking-wider">
                 {effectiveScope === 'PHQ' 
-                  ? 'राज्य मुख्यालय समीक्षा एवं निगरानी डैशबोर्ड'
+                  ? 'राज्य मुख्यालय समीक्षा डैशबोर्ड'
                   : (effectiveScope === 'DISTRICT' 
                     ? 'जिला पुलिस अधीक्षक कार्यालय डैशबोर्ड' 
-                    : 'थाना समीक्षा एवं निगरानी डैशबोर्ड')}
+                    : 'थाना समीक्षा डैशबोर्ड')}
               </span>
               <span className="bg-emerald-500/20 text-emerald-300 text-xs px-2.5 py-0.5 rounded-full border border-emerald-500/30">
                 {effectiveScope === 'PHQ' 

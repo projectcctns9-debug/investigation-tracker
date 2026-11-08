@@ -98,7 +98,7 @@ export const MasterProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           submittedByUserId: 'usr-sho-current',
           submittedByUserName: psObj?.shoName || 'SHO',
           overallStatus: 'Draft Saved',
-          overallStatusHi: 'ड्राफ्ट सहेजा गया',
+          overallStatusHi: 'प्रविष्टि प्रतीक्षारत',
           sectionA: sectionKey === 'sectionA' ? sectionWithMeta : { status: 'Not Started', totalFirsToday: 0, sidCreatedCount: 0, finalLinkCompletedCount: 0, pendingSidCount: 0, pendingFinalLinkCount: 0, firRecords: [] },
           sectionB: sectionKey === 'sectionB' ? sectionWithMeta : { status: 'Not Started', totalIosPosted: 0, iosLoggedInToday: 0, iosNotLoggedInToday: 0, craLoginPercentage: 0, ioRecords: [] },
           sectionC: sectionKey === 'sectionC' ? sectionWithMeta : { status: 'Not Started', chargesheetsPreparedToday: 0, presentedInCourtToday: 0, enteredInCctnsToday: 0, pendingCctnsEntriesCumulative: 0, awaitingCourtPresentationCumulative: 0, firRecords: [] },
