@@ -23,7 +23,7 @@ echo [2/2] Deploying to Cloudflare Pages (Project: investigation-tracker)...
 echo.
 echo If this is your first time, Cloudflare will open a browser to log in.
 echo.
-call npx wrangler pages deploy dist --project-name=investigation-tracker
+call npx --yes wrangler pages deploy dist --project-name=investigation-tracker
 
 echo.
 echo =====================================================================
