@@ -52,6 +52,7 @@ export const PsDailyDataEntry: React.FC = () => {
   const { 
     policeStations, 
     districts, 
+    submissions,
     getSubmissionForPsAndDate, 
     saveDailySection, 
     submitFinalDailyReport,
@@ -73,7 +74,11 @@ export const PsDailyDataEntry: React.FC = () => {
 
   const [reportingDate, setReportingDate] = useState<string>(getTodayDateString());
   const [activeSection, setActiveSection] = useState<'A' | 'B' | 'C'>('A');
-  const canDelete = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'DISTRICT_ADMIN';
+  // Check if current date report has already been submitted
+  const currentSubmission = getSubmissionForPsAndDate(activePsId, reportingDate);
+  const isSubmitted = currentSubmission?.overallStatus === 'Submitted' || currentSubmission?.overallStatus === 'Corrected and Resubmitted';
+  // If already submitted: only admin can delete. If not yet submitted (draft): user can delete/modify freely.
+  const canDelete = !isSubmitted || (currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'DISTRICT_ADMIN');
   const [modalEditReason, setModalEditReason] = useState<string>('');
   const [modalIoEditReason, setModalIoEditReason] = useState<string>('');
   const [modalCsEditReason, setModalCsEditReason] = useState<string>('');
@@ -133,9 +138,30 @@ export const PsDailyDataEntry: React.FC = () => {
   // SECTION D: BNS 60/90 Days State (Starts empty)
   const [secDCases, setSecDCases] = useState<BnsCustodyCaseItem[]>([]);
   const [secDGeneralRemarks, setSecDGeneralRemarks] = useState('');
+  // Load saved sections when active PS, date, or submissions list changes
+  useEffect(() => {
+    const sub = getSubmissionForPsAndDate(activePsId, reportingDate);
+    if (sub) {
+      if (sub.sectionA?.firRecords) setSecAFirs(sub.sectionA.firRecords);
+      else setSecAFirs([]);
+      if (sub.sectionA?.generalRemarks) setSecAGeneralRemarks(sub.sectionA.generalRemarks);
 
-  // Current submission record
-  const currentSubmission = getSubmissionForPsAndDate(activePsId, reportingDate);
+      if (sub.sectionB?.ioRecords) setSecBIos(sub.sectionB.ioRecords);
+      else setSecBIos([]);
+      if (sub.sectionB?.generalRemarks) setSecBGeneralRemarks(sub.sectionB.generalRemarks);
+
+      if (sub.sectionC?.firRecords) setSecCChargesheets(sub.sectionC.firRecords);
+      else setSecCChargesheets([]);
+      if (sub.sectionC?.generalRemarks) setSecCGeneralRemarks(sub.sectionC.generalRemarks);
+    } else {
+      setSecAFirs([]);
+      setSecBIos([]);
+      setSecCChargesheets([]);
+    }
+  }, [activePsId, reportingDate, submissions]);
+
+
+  // (currentSubmission already declared above)
 
   // SECTION A Calculations
   const secATotalFirs = secAFirs.length;
@@ -287,7 +313,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
     setSecAFirs(updatedFirs);
 
-    // DIRECT AUTO SUBMIT & LIVE SYNC
+    // Save Section A Draft without submitting full day report
     saveDailySection(activePsId, reportingDate, 'sectionA', {
       totalFirsToday: updatedFirs.length,
       sidCreatedCount: updatedFirs.filter(f => f.sidCreated).length,
@@ -296,21 +322,19 @@ export const PsDailyDataEntry: React.FC = () => {
       pendingFinalLinkCount: updatedFirs.filter(f => !f.finalLinkCompleted).length,
       firRecords: updatedFirs,
       generalRemarks: secAGeneralRemarks
-    }, 'Completed');
+    }, isSubmitted ? 'Completed' : 'Draft Saved');
 
-    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
-
-    addAuditLog({
-      userId: currentUser.id,
-      userName: currentUser.fullNameHi,
-      userRole: currentUser.role,
-      action: editingFirId ? 'UPDATE_ENTRY' : 'CREATE_ENTRY',
-      entityType: 'DAILY_SUBMISSION',
-      details: editingFirId 
-        ? `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने FIR ${item.firNumber} का विवरण संशोधित किया: ${modalEditReason || 'संशोधन'}`
-        : `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने नई FIR ${item.firNumber} प्रविष्टि सीधे जमा की`,
-      ipAddress: '127.0.0.1'
-    });
+    if (editingFirId && isSubmitted) {
+      addAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.fullNameHi,
+        userRole: currentUser.role,
+        action: 'UPDATE_ENTRY',
+        entityType: 'DAILY_SUBMISSION',
+        details: `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने जमा रिपोर्ट में FIR ${item.firNumber} का विवरण संशोधित किया: ${modalEditReason || 'संशोधन'}`,
+        ipAddress: '127.0.0.1'
+      });
+    }
 
     setShowFirModal(false);
   };
@@ -425,7 +449,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
     setSecBIos(updatedIos);
 
-    // DIRECT AUTO SUBMIT & LIVE SYNC
+    // Save Section B Draft without submitting full day report
     const totalIos = updatedIos.length;
     const loggedIn = updatedIos.filter(i => i.hasLoggedIn).length;
     saveDailySection(activePsId, reportingDate, 'sectionB', {
@@ -435,21 +459,19 @@ export const PsDailyDataEntry: React.FC = () => {
       craLoginPercentage: totalIos > 0 ? Math.round((loggedIn / totalIos) * 100) : 0,
       ioRecords: updatedIos,
       generalRemarks: secBGeneralRemarks
-    }, 'Completed');
+    }, isSubmitted ? 'Completed' : 'Draft Saved');
 
-    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
-
-    addAuditLog({
-      userId: currentUser.id,
-      userName: currentUser.fullNameHi,
-      userRole: currentUser.role,
-      action: editingIoId ? 'UPDATE_ENTRY' : 'CREATE_ENTRY',
-      entityType: 'DAILY_SUBMISSION',
-      details: editingIoId 
-        ? `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने विवेचक ${item.ioName} का विवरण संशोधित किया: ${modalIoEditReason || 'संशोधन'}`
-        : `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने विवेचक ${item.ioName} की प्रविष्टि सीधे जमा की`,
-      ipAddress: '127.0.0.1'
-    });
+    if (editingIoId && isSubmitted) {
+      addAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.fullNameHi,
+        userRole: currentUser.role,
+        action: 'UPDATE_ENTRY',
+        entityType: 'DAILY_SUBMISSION',
+        details: `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने जमा रिपोर्ट में विवेचक ${item.ioName} का विवरण संशोधित किया: ${modalIoEditReason || 'संशोधन'}`,
+        ipAddress: '127.0.0.1'
+      });
+    }
 
     setShowIoModal(false);
   };
@@ -576,7 +598,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
     setSecCChargesheets(updatedCs);
 
-    // DIRECT AUTO SUBMIT & LIVE SYNC
+    // Save Section C Draft without submitting full day report
     saveDailySection(activePsId, reportingDate, 'sectionC', {
       chargesheetsPreparedToday: updatedCs.filter(c => c.chargesheetPrepared).length,
       presentedInCourtToday: updatedCs.filter(c => c.courtSubmissionStatus === 'Presented').length,
@@ -585,21 +607,19 @@ export const PsDailyDataEntry: React.FC = () => {
       awaitingCourtPresentationCumulative: updatedCs.filter(c => c.courtSubmissionStatus === 'Pending').length,
       firRecords: updatedCs,
       generalRemarks: secCGeneralRemarks
-    }, 'Completed');
+    }, isSubmitted ? 'Completed' : 'Draft Saved');
 
-    submitFinalDailyReport(activePsId, reportingDate, currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी');
-
-    addAuditLog({
-      userId: currentUser.id,
-      userName: currentUser.fullNameHi,
-      userRole: currentUser.role,
-      action: editingCsId ? 'UPDATE_ENTRY' : 'CREATE_ENTRY',
-      entityType: 'DAILY_SUBMISSION',
-      details: editingCsId 
-        ? `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने चालान FIR ${item.firNumber} का विवरण संशोधित किया: ${modalCsEditReason || 'संशोधन'}`
-        : `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने चालान FIR ${item.firNumber} की प्रविष्टि सीधे जमा की`,
-      ipAddress: '127.0.0.1'
-    });
+    if (editingCsId && isSubmitted) {
+      addAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.fullNameHi,
+        userRole: currentUser.role,
+        action: 'UPDATE_ENTRY',
+        entityType: 'DAILY_SUBMISSION',
+        details: `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने जमा रिपोर्ट में चालान FIR ${item.firNumber} का विवरण संशोधित किया: ${modalCsEditReason || 'संशोधन'}`,
+        ipAddress: '127.0.0.1'
+      });
+    }
 
     setShowCsModal(false);
   };
@@ -635,6 +655,74 @@ export const PsDailyDataEntry: React.FC = () => {
       details: `${currentUser.fullNameHi} (एडमिन) ने चालान FIR ${csToRemove?.firNumber || id} को हटाया`,
       ipAddress: '127.0.0.1'
     });
+  };
+
+  // ==============================================================
+  // UNIFIED FINAL SUBMISSION: SUBMIT ALL 3 FORMS (A, B, C) TOGETHER
+  // ==============================================================
+  const handleFinalSubmitAllSections = () => {
+    if (secAFirs.length === 0 && secBIos.length === 0 && secCChargesheets.length === 0) {
+      if (!confirm('चेतावनी: किसी भी सेक्शन में कोई डाटा दर्ज नहीं है। क्या आप शून्य प्रविष्टि के साथ अंतिम रूप से जमा करना चाहते हैं?')) {
+        return;
+      }
+    } else {
+      if (!confirm('क्या आप तीनों फॉर्म (ई-साक्ष्य, CRA एवं चालान) की दैनिक रिपोर्ट अंतिम रूप से जमा करना चाहते हैं?\n\nनोट: एक बार जमा होने के बाद प्रविष्टि हटाने का अधिकार केवल एडमिन के पास रहेगा।')) {
+        return;
+      }
+    }
+
+    // 1. Save Section A Completed
+    saveDailySection(activePsId, reportingDate, 'sectionA', {
+      totalFirsToday: secAFirs.length,
+      sidCreatedCount: secAFirs.filter(f => f.sidCreated).length,
+      finalLinkCompletedCount: secAFirs.filter(f => f.finalLinkCompleted).length,
+      pendingSidCount: secAFirs.filter(f => !f.sidCreated).length,
+      pendingFinalLinkCount: secAFirs.filter(f => !f.finalLinkCompleted).length,
+      firRecords: secAFirs,
+      generalRemarks: secAGeneralRemarks
+    }, 'Completed');
+
+    // 2. Save Section B Completed
+    const totalIos = secBIos.length;
+    const loggedIn = secBIos.filter(i => i.hasLoggedIn).length;
+    saveDailySection(activePsId, reportingDate, 'sectionB', {
+      totalIosPosted: totalIos,
+      iosLoggedInToday: loggedIn,
+      iosNotLoggedInToday: totalIos - loggedIn,
+      craLoginPercentage: totalIos > 0 ? Math.round((loggedIn / totalIos) * 100) : 0,
+      ioRecords: secBIos,
+      generalRemarks: secBGeneralRemarks
+    }, 'Completed');
+
+    // 3. Save Section C Completed
+    saveDailySection(activePsId, reportingDate, 'sectionC', {
+      chargesheetsPreparedToday: secCChargesheets.filter(c => c.chargesheetPrepared).length,
+      presentedInCourtToday: secCChargesheets.filter(c => c.courtSubmissionStatus === 'Presented').length,
+      enteredInCctnsToday: secCChargesheets.filter(c => c.cctnsEntryStatus === 'Completed').length,
+      pendingCctnsEntriesCumulative: secCChargesheets.filter(c => c.cctnsEntryStatus === 'Pending').length,
+      awaitingCourtPresentationCumulative: secCChargesheets.filter(c => c.courtSubmissionStatus === 'Pending').length,
+      firRecords: secCChargesheets,
+      generalRemarks: secCGeneralRemarks
+    }, 'Completed');
+
+    // 4. Final Submit Record
+    const finalSub = submitFinalDailyReport(
+      activePsId, 
+      reportingDate, 
+      currentUser.fullNameHi || activePs?.shoName || 'थाना प्रभारी'
+    );
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullNameHi,
+      userRole: currentUser.role,
+      action: 'FINAL_SUBMIT',
+      entityType: 'DAILY_SUBMISSION',
+      details: `${currentUser.fullNameHi} (${currentUser.roleLabelHi}) ने तीनों फॉर्म (A, B, C) की दैनिक रिपोर्ट अंतिम रूप से जमा की`,
+      ipAddress: '127.0.0.1'
+    });
+
+    setSubmitSuccessModal(finalSub);
   };
 
   // Handlers for Section D
@@ -886,7 +974,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
               <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>स्वतः जमा व सिंक (Auto-Saved)</span>
+                <span>प्रविष्टि तालिका (ड्राफ्ट)</span>
               </div>
             </div>
           </div>
@@ -1093,7 +1181,7 @@ export const PsDailyDataEntry: React.FC = () => {
           {/* Section A Auto-Sync Banner */}
           <div className="pt-3 border-t border-slate-200 flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>ई-साक्ष्य प्रविष्टि फॉर्म से सहेजते ही सीधे स्वतः जमा (Auto-Submitted) हो जाती है और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो जाती है।</span>
+            <span>प्रविष्टि फॉर्म से सहेजने पर तालिका में जुड़ेगी। तीनों फॉर्म भरने के बाद नीचे या ऊपर 'तीनों फॉर्म अंतिम रूप से जमा करें' बटन दबाएं।</span>
           </div>
 
           {/* Section A Remarks */}
@@ -1417,7 +1505,7 @@ export const PsDailyDataEntry: React.FC = () => {
                       className="px-5 py-2 rounded-xl text-xs font-bold bg-police-navy-900 hover:bg-police-navy-950 text-police-gold-400 shadow-md flex items-center gap-1.5 transition-all transform active:scale-95"
                     >
                       <Check className="w-4 h-4" />
-                      <span>{editingFirId ? 'संशोधन सुरक्षित करें' : 'सहेजें एवं सीधे जमा करें'}</span>
+                      <span>{editingFirId ? 'संशोधन सुरक्षित करें' : 'सहेजें (Save)'}</span>
                     </button>
                   </div>
 
@@ -1448,7 +1536,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
               <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>स्वतः जमा व सिंक (Auto-Saved)</span>
+                <span>प्रविष्टि तालिका (ड्राफ्ट)</span>
               </div>
             </div>
           </div>
@@ -1773,7 +1861,7 @@ export const PsDailyDataEntry: React.FC = () => {
 
               <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>स्वतः जमा व सिंक (Auto-Saved)</span>
+                <span>प्रविष्टि तालिका (ड्राफ्ट)</span>
               </div>
             </div>
           </div>
@@ -1936,7 +2024,7 @@ export const PsDailyDataEntry: React.FC = () => {
           {/* Section C Auto-Sync Banner */}
           <div className="pt-3 border-t border-slate-200 flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>चालान प्रविष्टि सहेजते ही सीधे स्वतः जमा (Auto-Submitted) हो जाती है और जिला व PHQ डैशबोर्ड पर तुरंत सिंक हो जाती है।</span>
+            <span>प्रविष्टि फॉर्म से सहेजने पर तालिका में जुड़ेगी। तीनों फॉर्म भरने के बाद नीचे या ऊपर 'तीनों फॉर्म अंतिम रूप से जमा करें' बटन दबाएं।</span>
           </div>
 
           {/* Section C Modal Popup Form */}
@@ -2139,6 +2227,41 @@ export const PsDailyDataEntry: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ============================================================== */}
+      {/* UNIFIED FINAL SUBMISSION BAR (ALL 3 FORMS TOGETHER) */}
+      {/* ============================================================== */}
+      <div className="bg-gradient-to-r from-police-navy-950 via-police-navy-900 to-police-navy-950 text-white rounded-2xl p-5 shadow-xl border-2 border-police-gold-500 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Send className="w-5 h-5 text-police-gold-400" />
+            <h3 className="text-base font-black text-white">
+              तीनों फॉर्म की दैनिक रिपोर्ट अंतिम रूप से जमा करें
+            </h3>
+            {isSubmitted && (
+              <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>जमा हो चुका है ({currentSubmission?.overallStatusHi || 'जमा'})</span>
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-300 font-hindi mt-1">
+            सेक्शन A (ई-साक्ष्य), सेक्शन B (CRA लॉगिन) एवं सेक्शन C (चालान) का समस्त डेटा एक साथ जिला एवं PHQ डैशबोर्ड पर सबमिट करें।
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={handleFinalSubmitAllSections}
+            className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black px-6 py-2.5 rounded-xl text-xs shadow-lg flex items-center gap-2 transition-all transform active:scale-95"
+          >
+            <Send className="w-4 h-4 text-police-gold-300" />
+            <span>{isSubmitted ? 'तीनों फॉर्म पुनः सिंक / अपडेट करें' : 'तीनों फॉर्म अंतिम रूप से जमा करें'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* ============================================================== */}
       {/* AUDIT / MODIFICATION HISTORY MODAL */}
       {/* ============================================================== */}
